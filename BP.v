@@ -214,25 +214,105 @@ Qed.
 Definition subset (u v : set priest) := forall a, set_In a u -> set_In a v.
 
 
+(* 2019/9/2 修改nincl定义。*)
 Inductive nincl (u v : set priest) : Prop :=
-  nincl_cons : subset u v /\ (exists a, In a v /\ ~In a u) -> nincl u v.
+  nincl_cons : forall a, In a u -> ~ In a v -> nincl u v.
+  
+
+(* 2019/9/2 修改sincl定义。*)
+Definition sincl (u v : set priest) := subset u v /\ (exists a, In a v /\ ~In a u).
 
 
-Definition sincl (u v : set priest) := subset u v /\ nincl u v.
+(* 2019/9/2 增加Axiom_Extent及以下两个推论并证明推论。*)
+Axiom Axiom_Extent : forall x y : set priest,
+  x = y <-> (forall z, In z x <-> In z y).
+  
 
-
-Hypothesis setDec : forall u v : set priest, (exists a, In a v /\ ~In a u) <-> ~ u = v.
-
-
-Hypothesis setIntuition : forall u v, subset u v <-> sincl u v \/ u = v.
-
-
-Hypothesis sincl_spec : forall u v, sincl u v -> sincl v u <-> False.
-
-
-Lemma notEqual : forall u v, sincl u v -> ~ u = v.
+Lemma Axiom_infer1 : forall x y : set priest,
+  x <> y <-> ~(forall z, In z x <-> In z y).
 Proof.
-  intros. inversion H. inversion H1. destruct H2. apply setDec. apply H3.
+  intros. apply not_iff_compat. apply Axiom_Extent.
+Qed.
+
+
+Lemma Axiom_infer2 : forall x y : set priest,
+  ~(forall z, In z x <-> In z y) -> (exists a, In a x /\ ~In a y) \/ (exists a, In a y /\ ~In a x).
+Proof.
+  intros. apply not_all_ex_not in H.  inversion H. unfold iff in H0. apply not_and_or in H0.  destruct H0.
+  - apply imply_to_and in H0. left. exists x0. apply H0.
+  - apply imply_to_and in H0. right. exists x0. apply H0.
+Qed.
+
+
+(* 2019/9/2 将原有的setDecR假设去掉，增加了对应的引理并证明。*)
+Lemma setDecR : forall u v : set priest, (exists a, In a v /\ ~In a u) -> u <> v.
+Proof.
+  intros. inversion H. destruct (list_eq_dec Aeq_dec u v).
+  + destruct e. unfold not. intros. inversion H0. unfold not in H3. apply H3 in H2. apply H2.
+  + apply n.
+Qed.
+
+
+Lemma setDecL : forall u v : set priest, (exists a, In a u /\ ~In a v) -> u <> v.
+Proof.
+  intros. inversion H. destruct (list_eq_dec Aeq_dec u v).
+  + destruct e. destruct H0. eauto. 
+  + apply n.
+Qed.
+
+
+(* 2019/9/2 增加set_NotSubset引理并证明。*)
+Lemma set_NotSubset : forall u v : set priest, (exists a, In a v /\ ~In a u) <-> ~ subset v u.
+Proof.
+  intros; split.
+ - intros H1 H2. destruct H1. generalize (H2 x); intro H3. destruct H as [H H1].
+   apply H3 in H. auto.
+ - intro H. apply not_all_ex_not in H. destruct H. exists x. apply imply_to_and in H. auto.
+Qed.
+
+
+(* 2019/9/2 将原有的setIntuition假设去掉，增加了对应的引理并证明。*)
+Lemma setIntuitionL : forall u v , subset u v -> sincl u v \/ u = v.
+Proof.
+  intros. destruct (list_eq_dec Aeq_dec u v).
+  - right. apply e.
+  - left. apply Axiom_infer1 in n. apply Axiom_infer2 in n. unfold sincl. split.
+    + apply H.
+    + unfold subset in H. destruct n.
+      { inversion H0. generalize (H x). intros. inversion H1.  apply H2 in H3.  eauto. }
+      { apply H0. }
+Qed.
+
+
+Lemma setIntuitionR : forall u v, sincl u v \/ u = v -> subset u v.
+Proof.
+  intros. destruct H as [H1 | h2].
+  - inversion H1. apply H.
+  - unfold subset. intros. rewrite h2 in H. apply H.
+Qed.
+
+
+Lemma setIntuition : forall u v, sincl u v \/ u = v <-> subset u v.
+Proof.
+  intros. split.
+  - apply setIntuitionR.
+  - apply setIntuitionL.
+Qed.
+
+(* 2019/9/2 将原有的sincl_spec假设去掉，增加了对应的引理并证明。*)
+Lemma sincl_spec : forall u v, sincl u v -> sincl v u <-> False.
+Proof.
+  intros. destruct H as [H1 H2]. destruct H2. destruct H. split.
+  - intro H2. destruct H2 as [H2 H3]. unfold subset in H2. generalize (H2 x). intros.
+    apply H4 in H. auto.
+  - intro. inversion H2.
+Qed.
+
+
+(* 2019/9/2 引理名变更，证明对应setDecR做相应更改。*)
+Lemma sincl_NotEqual : forall u v, sincl u v -> ~ u = v.
+Proof.
+  intros. inversion H. inversion H1. destruct H2. apply setDecR. apply H1.
 Qed.
 
 
