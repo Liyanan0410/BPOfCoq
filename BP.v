@@ -214,16 +214,16 @@ Qed.
 Definition subset (u v : set priest) := forall a, set_In a u -> set_In a v.
 
 
-(* 2019/9/2 修改nincl定义。*)
+(* 修改nincl定义。*)
 Inductive nincl (u v : set priest) : Prop :=
   nincl_cons : forall a, In a u -> ~ In a v -> nincl u v.
   
 
-(* 2019/9/2 修改sincl定义。*)
+(* 修改sincl定义。*)
 Definition sincl (u v : set priest) := subset u v /\ (exists a, In a v /\ ~In a u).
 
 
-(* 2019/9/2 增加Axiom_Extent及以下两个推论并证明推论。*)
+(* 增加Axiom_Extent及以下两个推论并证明推论。*)
 Axiom Axiom_Extent : forall x y : set priest,
   x = y <-> (forall z, In z x <-> In z y).
   
@@ -244,7 +244,7 @@ Proof.
 Qed.
 
 
-(* 2019/9/2 将原有的setDecR假设去掉，增加了对应的引理并证明。*)
+(* 将原有的setDecR假设去掉，增加了对应的引理并证明。*)
 Lemma setDecR : forall u v : set priest, (exists a, In a v /\ ~In a u) -> u <> v.
 Proof.
   intros. inversion H. destruct (list_eq_dec Aeq_dec u v).
@@ -261,7 +261,7 @@ Proof.
 Qed.
 
 
-(* 2019/9/2 增加set_NotSubset引理并证明。*)
+(* 增加set_NotSubset引理并证明。*)
 Lemma set_NotSubset : forall u v : set priest, (exists a, In a v /\ ~In a u) <-> ~ subset v u.
 Proof.
   intros; split.
@@ -271,7 +271,7 @@ Proof.
 Qed.
 
 
-(* 2019/9/2 将原有的setIntuition假设去掉，增加了对应的引理并证明。*)
+(* 将原有的setIntuition假设去掉，增加了对应的引理并证明。*)
 Lemma setIntuitionL : forall u v , subset u v -> sincl u v \/ u = v.
 Proof.
   intros. destruct (list_eq_dec Aeq_dec u v).
@@ -299,7 +299,7 @@ Proof.
   - apply setIntuitionL.
 Qed.
 
-(* 2019/9/2 将原有的sincl_spec假设去掉，增加了对应的引理并证明。*)
+(* 将原有的sincl_spec假设去掉，增加了对应的引理并证明。*)
 Lemma sincl_spec : forall u v, sincl u v -> sincl v u <-> False.
 Proof.
   intros. destruct H as [H1 H2]. destruct H2. destruct H. split.
@@ -309,7 +309,7 @@ Proof.
 Qed.
 
 
-(* 2019/9/2 引理名变更，证明对应setDecR做相应更改。*)
+(* 引理名变更，证明对应setDecR做相应更改。*)
 Lemma sincl_NotEqual : forall u v, sincl u v -> ~ u = v.
 Proof.
   intros. inversion H. inversion H1. destruct H2. apply setDecR. apply H1.
