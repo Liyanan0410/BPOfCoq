@@ -8,11 +8,29 @@ Notation "[ ]" := nil (format "[ ]") : list_scope.
 Notation "[ x ]" := (cons x nil) : list_scope.
 Notation "[ x ; y ; .. ; z ]" := (cons x (cons y .. (cons z nil) ..)) : list_scope.
 
+
 (***************************************************************************)
-(* 对Basic Paxos算法涉及到的对象全部进行抽象类型定义，并证明一些定理。                 *)
+(* Chapter 0. LIBRARY LEMMAS AND DEFINITIONS                               *)
 (***************************************************************************)
 (***************************************************************************)
-(* All Types involved in basic Paxos algorithm are defined as Inductive types, and some theorems are proved.                 *)
+(* Coq库的补充和扩展。                                                        *)
+(***************************************************************************)
+Definition nat_eq_dec : forall x y: nat, {x = y} + {x <> y}.
+  induction x as [|n Hn]; destruct y as [| m].
+  - left; reflexivity.
+  - right. discriminate.
+  - right. discriminate.
+  - destruct (Hn m) as [e | d].
+    + left; apply f_equal; exact e.
+    + right. intro e. apply d. injection e. trivial.
+Defined.
+
+
+(***************************************************************************)
+(* Chapter 1. BASIC DEFINITIONS AND PROPERTIES                             *)
+(***************************************************************************)
+(***************************************************************************)
+(* Basic Paxos涉及对象的抽象类型定义，并证明相关定理。                             *)
 (***************************************************************************)
 Inductive priest : Type :=
   | priestId : nat -> priest.
@@ -24,6 +42,13 @@ Inductive decree : Type :=
 
 Inductive number : Type :=
   | numberId : nat -> number.
+
+
+Definition priest_eq_dec : forall x y:priest, {x = y} + {x <> y}.
+  intros [n] [m]. destruct (nat_eq_dec n m) as [e | d].
+  - left. apply f_equal. exact e.
+  - right. intro e. apply d. injection e; trivial.
+Defined.
 
 
 Definition beq_priest (x1 x2 : priest) :=
@@ -82,7 +107,6 @@ Definition beq_number (x1 x2 : number) :=
   end.
 
 
-(* 小于判断 *)
 Definition blt_number (x1 x2 : number) :=
   match x1, x2 with
   | numberId n1, numberId n2 => ltb n1 n2
@@ -126,129 +150,13 @@ Proof.
 Qed.
 
 
-Hypothesis Aeq_dec : forall x y:priest, {x = y} + {x <> y}.
-
-
 (***************************************************************************)
-(* Basic Paxos算法中，对Quorums的定义及其重要性质和引理的定义和证明。                *)
+(* Chapter 2. A COMPLEMENT TO THE PROPERTIES OF PRIEST SETS                *)
 (***************************************************************************)
 (***************************************************************************)
-(* In the basic Paxos algorithm, the definition of Quorums, its important properties and the definition and proof of lemma.                *)
+(* 补充priest集合的定义和性质。                                                 *)
 (***************************************************************************)
-Variables Quorums : set (set priest).
-
-Lemma DoublePredicate : forall Q1 Q2 : set priest, set_In Q1 Quorums -> set_In Q2 Quorums
-  -> set_In Q1 Quorums /\ set_In Q2 Quorums.
-Proof.
-  intros. split. apply H. apply H0.
-Qed.
-
-
-Lemma DoublePredicateL : forall Q1 Q2 : set priest, set_In Q1 Quorums /\ set_In Q2 Quorums -> In Q1 Quorums.
-Proof.
-  intros Q1 Q2 [s1 s2]. apply s1.
-Qed.
-
-
-
-Lemma DoublePredicateR : forall Q1 Q2 : set priest, set_In Q1 Quorums /\ set_In Q2 Quorums -> In Q2 Quorums.
-Proof.
-  intros Q1 Q2 [s1 s2]. apply s2.
-Qed.
-
-
-Lemma empty_spec : forall x, ~(set_In x (empty_set priest)).
-Proof.
-  intros. unfold empty_set. unfold not. simpl. trivial.
-Qed.
-
-
-Lemma empty_spec_iff : forall x, set_In x (empty_set priest) <-> False.
-Proof.
-  simpl; intros. split; trivial.
-Qed.
-
-
-
-Lemma empty_spec_mem : forall Q , (exists x, set_mem Aeq_dec x Q = true) -> Q <> empty_set priest.
-Proof.
-  intros Q [x e]. apply set_mem_correct1 in e.
-  unfold not. intros eQ. rewrite eQ in e. exact e.
-Qed.
-
-
-(* Lemma empty_spec_mem_R : forall Q , Q <> empty_set priest -> (exists x, set_mem Aeq_dec x Q = true).
-Proof.
-  intros Q H. eexists. apply set_mem_correct2. unfold not in H. specialize (empty_spec); intros H1.
-  generalize H1. intros H2.
-  - destruct H.
-  - destruct H0.
-  intros Q [x e]. apply set_mem_correct1 in e.
-  unfold not. intros eQ. rewrite eQ in e. exact e.
-Qed. *)
-
-
-(* 论文中的假设条件二。 *)
-(* Hypothesis B2。 *)
-Hypothesis QuorumsAssumption: forall Q1 Q2, In Q1 Quorums -> In Q2 Quorums ->
-  set_inter Aeq_dec Q1 Q2 <> empty_set priest.
-
-(* 论文中的假设条件二。 *)
-(* Hypothesis B2。 *)
-Hypothesis QuorumsAssumptionE: forall Q1 Q2 : set priest, In Q1 Quorums /\ In Q2 Quorums ->
-  exists q, set_In q (set_inter Aeq_dec Q1 Q2).
-
-
-Lemma QuorumNonEmptyAuxiliaryO : forall Q1 Q2, In Q1 Quorums /\ In Q2 Quorums ->
-  Q1 <> empty_set priest /\ Q2 <> empty_set priest.
-Proof.
-  intros Q1 Q2 HQ1Q2. apply QuorumsAssumptionE in HQ1Q2. destruct HQ1Q2 as [q Hq].
-  apply set_inter_elim in Hq. destruct Hq as [Hq1 Hq2]. split.
-  - apply empty_spec_mem. exists q.
-    apply set_mem_correct2. apply Hq1.
-  - apply empty_spec_mem. exists q.
-    apply set_mem_correct2. apply Hq2.
-Qed.
-
-
-Lemma QuorumNonEmptyAuxiliaryT : forall Q1 Q2, In Q1 Quorums -> In Q2 Quorums ->
-  Q1 <> empty_set priest /\ Q2 <> empty_set priest.
-Proof.
-  intros. specialize (DoublePredicate Q1 Q2).
-  intros. apply H1 in H.
-  - apply QuorumNonEmptyAuxiliaryO. apply H.
-  - apply H0.
-Qed.
-
-
-Lemma QuorumNonEmpty : forall Q, In Q Quorums -> Q <> empty_set priest.
-Proof.
-  intros. specialize (QuorumNonEmptyAuxiliaryT Q Q).
-  intros. apply H0 in H.
-  - destruct H as [H]. apply H.
-  - apply H.
-Qed.
-
-(***************************************************************************)
-(* 对集合性质的补充。                                                        *)
-(***************************************************************************)
-(***************************************************************************)
-(* A complement to the properties of sets.                                                       *)
-(***************************************************************************)
-Definition subset (u v : set priest) := forall a, set_In a u -> set_In a v.
-
-
-(* 修改nincl定义。*)
-Inductive nincl (u v : set priest) : Prop :=
-  nincl_cons : forall a, In a u -> ~ In a v -> nincl u v.
-
-
-(* 修改sincl定义。*)
-Definition sincl (u v : set priest) := subset u v /\ (exists a, In a v /\ ~In a u).
-
-
-(* 增加Axiom_Set及以下两个推论并证明推论。*)
-(* 此处的相等只是说明包含的元素都是相同的。 *)
+(* 此处的相等是两个priest集合的无序相等性质。 *)
 Axiom Axiom_Set : forall x y : set priest,
   x = y <-> (forall z, In z x <-> In z y).
 
@@ -269,10 +177,19 @@ Proof.
 Qed.
 
 
-(* 将原有的setDecR假设去掉，增加了对应的引理并证明。*)
+Definition subset (u v : set priest) := forall a, set_In a u -> set_In a v.
+
+
+Inductive nincl (u v : set priest) : Prop :=
+  nincl_cons : forall a, In a u -> ~ In a v -> nincl u v.
+
+
+Definition sincl (u v : set priest) := subset u v /\ (exists a, In a v /\ ~In a u).
+
+
 Lemma setDecR : forall u v : set priest, (exists a, In a v /\ ~In a u) -> u <> v.
 Proof.
-  intros u v H. destruct H as [a H]. destruct (list_eq_dec Aeq_dec u v).
+  intros u v H. destruct H as [a H]. destruct (list_eq_dec priest_eq_dec u v).
   + destruct e. destruct H as [H H1]. eauto.
   + exact n.
 Qed.
@@ -280,13 +197,12 @@ Qed.
 
 Lemma setDecL : forall u v : set priest, (exists a, In a u /\ ~In a v) -> u <> v.
 Proof.
-  intros u v H. destruct H as [a H]. destruct (list_eq_dec Aeq_dec u v).
+  intros u v H. destruct H as [a H]. destruct (list_eq_dec priest_eq_dec u v).
   + destruct e. destruct H. eauto.
   + exact n.
 Qed.
 
 
-(* 增加set_NotSubset引理并证明。*)
 Lemma set_NotSubset : forall u v : set priest, (exists a, In a v /\ ~In a u) <-> ~ subset v u.
 Proof.
   intros; split.
@@ -296,10 +212,9 @@ Proof.
 Qed.
 
 
-(* 将原有的setIntuition假设去掉，增加了对应的引理并证明。*)
 Lemma setIntuitionL : forall u v , subset u v -> sincl u v \/ u = v.
 Proof.
-  intros u v H. destruct (list_eq_dec Aeq_dec u v).
+  intros u v H. destruct (list_eq_dec priest_eq_dec u v).
   - right. apply e.
   - left. apply Axiom_infer1 in n. apply Axiom_infer2 in n. unfold sincl. split.
     + apply H.
@@ -323,7 +238,7 @@ Proof.
   - apply setIntuitionL.
 Qed.
 
-(* 将原有的sincl_spec假设去掉，增加了对应的引理并证明。*)
+
 Lemma sincl_spec : forall u v, sincl u v -> sincl v u <-> False.
 Proof.
   intros u v H. destruct H as [H1 H2]. destruct H2 as [a H2]. destruct H2 as [H2 H3]. split.
@@ -333,7 +248,6 @@ Proof.
 Qed.
 
 
-(* 引理名变更，证明对应setDecR做相应更改。*)
 Lemma sincl_NotEqual : forall u v, sincl u v -> ~ u = v.
 Proof.
   intros u v H. destruct H as [H H1]. apply setDecR. apply H1.
@@ -350,8 +264,31 @@ Proof.
 Qed.
 
 
+Lemma empty_spec : forall x, ~(set_In x (empty_set priest)).
+Proof.
+  intros. unfold empty_set. unfold not. simpl. trivial.
+Qed.
+
+
+Lemma empty_spec_iff : forall x, set_In x (empty_set priest) <-> False.
+Proof.
+  simpl; intros. split; trivial.
+Qed.
+
+
+
+Lemma empty_spec_mem : forall Q , (exists x, set_mem priest_eq_dec x Q = true) -> Q <> empty_set priest.
+Proof.
+  intros Q [x e]. apply set_mem_correct1 in e.
+  unfold not. intros eQ. rewrite eQ in e. exact e.
+Qed.
+
+
 (***************************************************************************)
-(* 投票行为及性质的定义，及其性质定义。                                            *)
+(* Chapter 3. BASIC DEFINITIONS AND PROPERTIES OF BALLOT                   *)
+(***************************************************************************)
+(***************************************************************************)
+(* 投票行为的抽象和形式化定义。                                                  *)
 (***************************************************************************)
 (* Formally, a ballot B consisted of the following four components. *)
 Record Ballot : Type := mkBallot
@@ -367,14 +304,11 @@ Record Ballot : Type := mkBallot
 }.
 
 
-Hypothesis Aeq_dec_Ballot : forall x y : Ballot, {(bal x) = (bal y)} + {blt_number (bal x) (bal y) = true}.
-
-
 (***************************************************************************)
-(* 消息行为抽象，及其性质定义。                                                  *)
+(* Chapter 4. BASIC DEFINITIONS AND PROPERTIES OF MESSAGE                  *)
 (***************************************************************************)
 (***************************************************************************)
-(* Message behavior abstraction and its nature definition.                                                  *)
+(* 消息行为的抽象和形式化定义。                                                  *)
 (***************************************************************************)
 Record Message : Type := mkMessage
 {
@@ -387,33 +321,43 @@ Record Message : Type := mkMessage
 
 
 (***************************************************************************)
-(* Basic Paxos算法涉及的变量及默认值定义，同时定义了相关性质和引理。                   *)
+(* Chapter 5. DEFINITIONS OF SYSTEM STATES                                 *)
 (***************************************************************************)
 (***************************************************************************)
-(* the definition of variables and default values Basic Paxos algorithm involves, and defines the related properties and lemmas.                   *)
+(* 系统状态定义。                                                             *)
 (***************************************************************************)
-Variables aBallots : set Ballot.
-Variables Acceptors : set priest.
-Variables Values : set decree.
+(* 系统所有轮次编号的集合。 *)
 Variables Numbers : list number.
-
-
-Variables maxBal : priest -> number.
-Variables maxVBal : priest -> number.
-Variables maxVal : priest -> decree.
+(* 系统所有参与者的集合。 *)
+Variables Acceptors : set priest.
+(* 系统所有待选值的集合，初始为None。 *)
+Variables Values : set decree.
 Variables None : decree.
-Variables msgs : set Message.
+(* 系统所有投票的集合。 *)
+Variables aBallots : set Ballot.
+(* 系统所有轮次参与者集合的集合（议会系统）。 *)
+Variables Quorums : set (set priest).
+(* 系统所有消息的集合。 *)
+Variables msgsChannel : set Message.
 
-(* 论文中的假设条件一。 *)
-(* Hypothesis B1 *)
-Hypothesis Unique_Ballot : forall x y : Ballot, In x aBallots -> In y aBallots -> x = y <-> (bal x) = (bal y).
+
+(* 每个参与者Promise的最大轮次编号。 *)
+Variables PromiseMaxBal : priest -> number.
+(* THE WAY TO STATE CONDITION B3。 *)
+(* 每个参与者Accepted的最大轮次编号和最大特定值。 *)
+Variables AcceptedMaxBal : priest -> number.
+Variables AcceptedMaxVal : priest -> decree.
 
 
-Axiom Axiom_Ballot : forall b1 b2,  In b1 aBallots -> In b2 aBallots -> (dec b1) = (dec b2)
-                             /\(qrm b1) = (qrm b2)
-                             /\(vot b1) = (vot b2)
-                             /\(bal b1) = (bal b2) <-> b1 = b2.
+Definition None_fact : Prop := ~In None Values.
 
+
+(***************************************************************************)
+(* Chapter 6. BASIC DEFINITIONS PROPERTIES OF BALLOT AND MESSAGE           *)
+(***************************************************************************)
+(***************************************************************************)
+(* Ballot和Message基本性质的定义和证明。                                        *)
+(***************************************************************************)
 Lemma characteristic_prop_Ballot : forall b1 b2,  In b1 aBallots -> In b2 aBallots -> (dec b1) = (dec b2)
                              /\(qrm b1) = (qrm b2)
                              /\(vot b1) = (vot b2)
@@ -425,13 +369,8 @@ Proof.
 Qed.
 
 
-Axiom Axiom_Message : forall m1 m2,  In m1 msgs -> In m2 msgs -> (typeM m1) = (typeM m2)
-                             /\(balM m1) = (balM m1)
-                             /\(maxValM m1) = (maxValM m2)
-                             /\(maxVBalM m1) = (maxVBalM m2)
-                             /\(accM m1) = (accM m2) <-> m1 = m2.
 
-Lemma characteristic_prop_MessageNew : forall m1 m2,  In m1 msgs -> In m2 msgs -> (typeM m1) = (typeM m2)
+Lemma characteristic_prop_Message : forall m1 m2,  In m1 msgsChannel -> In m2 msgsChannel -> (typeM m1) = (typeM m2)
                              /\(balM m1) = (balM m2)
                              /\(maxValM m1) = (maxValM m2)
                              /\(maxVBalM m1) = (maxVBalM m2)
@@ -443,21 +382,63 @@ Proof.
 Qed.
 
 
-Definition None_fact : Prop := ~In None Values.
+(***************************************************************************)
+(* Chapter 7. DEFINITIONS OF PAXOS CONDITIONS AND THESE LEMMAS             *)
+(***************************************************************************)
+(***************************************************************************)
+(* Paxos三大条件以及引理的定义和证明。                                           *)
+(***************************************************************************)
+(* CONDITION B1 *)
+Hypothesis Unique_Ballot : forall x y : Ballot,
+  In x aBallots -> In y aBallots -> x = y <-> (bal x) = (bal y).
 
 
-Definition TypeCheck : Prop :=
-    forall a, In a Acceptors -> In (maxVBal a) Numbers
-  /\forall a, In a Acceptors -> In (maxBal a) Numbers
-  /\forall a, In a Acceptors -> In (maxVal a) Values
-  /\forall a, In a Acceptors -> less_or_equal_number (maxVBal a) (maxBal a).
+Hypothesis eq_dec_Ballot : forall x y : Ballot,
+  {(bal x) = (bal y)} + {blt_number (bal x) (bal y) = true}.
 
 
+(* CONDITION B2。 *)
+Hypothesis QuorumsAssumption: forall Q1 Q2 : set priest, In Q1 Quorums /\ In Q2 Quorums ->
+  exists q, set_In q (set_inter priest_eq_dec Q1 Q2).
+
+
+Lemma QuorumNonEmptyAuxiliary : forall Q1 Q2, In Q1 Quorums /\ In Q2 Quorums ->
+  Q1 <> empty_set priest /\ Q2 <> empty_set priest.
+Proof.
+  intros Q1 Q2 HQ1Q2. apply QuorumsAssumption in HQ1Q2. destruct HQ1Q2 as [q Hq].
+  apply set_inter_elim in Hq. destruct Hq as [Hq1 Hq2]. split.
+  - apply empty_spec_mem. exists q.
+    apply set_mem_correct2. apply Hq1.
+  - apply empty_spec_mem. exists q.
+    apply set_mem_correct2. apply Hq2.
+Qed.
+
+
+Lemma QuorumNonEmpty : forall Q, In Q Quorums -> Q <> empty_set priest.
+Proof.
+  intros Q H. specialize (QuorumNonEmptyAuxiliary Q Q); intros HQ.
+  assert (HD : forall Q, In Q Quorums -> In Q Quorums /\ In Q Quorums ).
+    { intros AQ AH. split.
+      + exact AH.
+      + exact AH. }
+  specialize (HD Q); intros.
+  apply HD in H. apply HQ in H.
+  destruct H as [H1 H2]. apply H1.
+Qed.
+
+
+(***************************************************************************)
+(* Chapter 8. DEFINITIONS ABOUT HOW A VALUE IS CHOSEN                      *)
+(***************************************************************************)
+(***************************************************************************)
+(* 特定值被选择的定义，即公式（2）。                                              *)
+(***************************************************************************)
 Inductive VotedForIn : priest -> decree -> number -> Prop :=
-  | cons_VotedForIn : forall a v b, In a Acceptors -> In v Values -> In b Numbers -> (exists m, In m msgs /\ (typeM m) = 4
-                                       /\ (balM m) = b
-                                       /\ (maxValM m) = v
-                                       /\ (accM m) = a) -> VotedForIn a v b.
+  | cons_VotedForIn : forall a v b, In a Acceptors -> In v Values -> In b Numbers ->
+    (exists m, In m msgsChannel /\ (typeM m) = 4
+                                /\ (balM m) = b
+                                /\ (maxValM m) = v
+                                /\ (accM m) = a) -> VotedForIn a v b.
 
 
 Inductive ChosenIn : decree -> number -> Prop :=
@@ -470,52 +451,12 @@ Inductive Chosen : decree -> Prop :=
       ChosenIn v b) -> Chosen v.
 
 
-Inductive Ballot_Equal_Dec : Ballot -> Ballot -> Prop :=
-  | Ballot_Dec_cons : forall b1 b2, set_In b1 aBallots -> set_In b2 aBallots ->
-                          b1 = b2 -> (dec b1) = (dec b2)
-                                   /\(qrm b1) = (qrm b2)
-                                   /\(vot b1) = (vot b2)
-                                   /\(bal b1) = (bal b2) -> Ballot_Equal_Dec b1 b2.
-
-
-Inductive Ballot_bal_Dec : Ballot -> Ballot -> Prop :=
-  | Ballot_bal_Dec_cons : forall b1 b2, set_In b1 aBallots -> set_In b2 aBallots ->
-    (bal b1) = (bal b2) -> b1 = b2 -> Ballot_bal_Dec b1 b2.
-
-
-Lemma Ballot_Equal : forall b1 b2, set_In b1 aBallots -> set_In b2 aBallots ->
-   b1 = b2 -> (dec b1) = (dec b2)
-           /\(qrm b1) = (qrm b2)
-           /\(vot b1) = (vot b2)
-           /\(bal b1) = (bal b2).
-Proof.
-  intros b1 b2 i1 i2 H. apply characteristic_prop_Ballot.
-  - exact i1.
-  - exact i2.
-  - exact H.
-Qed.
-
-
-Lemma Ballot_Equal_decree : forall b1 b2, set_In b1 aBallots -> set_In b2 aBallots ->
-  b1 = b2 -> (dec b1) = (dec b2).
-Proof.
-  intros b1 b2 i1 i2 H. apply characteristic_prop_Ballot.
-  - exact i1.
-  - exact i2.
-  - exact H.
-Qed.
-
-
-Lemma Ballot_bal : forall b1 b2, set_In b1 aBallots -> set_In b2 aBallots ->
-  (bal b1) = (bal b2) -> b1 = b2.
-Proof.
-  intros b1 b2 i1 i2 H. apply Unique_Ballot.
-  - exact i1.
-  - exact i2.
-  - exact H.
-Qed.
-
-
+(***************************************************************************)
+(* Chapter 9. DEFINITIONS OF BALLOT RELIABILITY AND NONTAMPERABILITY       *)
+(***************************************************************************)
+(***************************************************************************)
+(* 每个投票轮次的真实性和不可篡改性的定义。                                         *)
+(***************************************************************************)
 Inductive trivial_qrm : Ballot -> Prop :=
   | trivial_qrm_cons : forall b, set_In b aBallots -> set_In (qrm b) Quorums -> trivial_qrm b.
 
@@ -533,10 +474,11 @@ Inductive trivial_qrm_vot : Ballot -> Prop :=
 
 
 Inductive trivial_vot_msg : Ballot -> Prop :=
-  | trivial_vot_msg_cons : forall b a, In b aBallots -> set_In a (vot b) -> (exists m, In m msgs -> (typeM m) = 4
-                                                     /\ (balM m) = (bal b)
-                                                     /\ (maxValM m) = (dec b)
-                                                     /\ (accM m) = a) -> trivial_vot_msg b.
+  | trivial_vot_msg_cons : forall b a, In b aBallots -> set_In a (vot b) ->
+      (exists m, In m msgsChannel -> (typeM m) = 4
+                                  /\ (balM m) = (bal b)
+                                  /\ (maxValM m) = (dec b)
+                                  /\ (accM m) = a) -> trivial_vot_msg b.
 
 
 Inductive trivial_vot : Ballot -> Prop :=
@@ -545,27 +487,30 @@ Inductive trivial_vot : Ballot -> Prop :=
 
 
 Inductive trivial_qrm_Acce : Ballot -> Prop :=
-  | trivial_qrm_Acce_cons : forall b, set_In b aBallots -> (forall a, set_In a (qrm b) -> set_In a Acceptors) -> trivial_qrm_Acce b.
+  | trivial_qrm_Acce_cons : forall b, set_In b aBallots ->
+      (forall a, set_In a (qrm b) -> set_In a Acceptors) -> trivial_qrm_Acce b.
 
 
 Inductive trivial (b : Ballot) : Prop :=
   | ttrivial_cons : trivial_qrm b -> trivial_decree b -> trivial_number b -> trivial_qrm_vot b
-                           -> trivial_qrm_Acce b -> trivial_vot b -> trivial_vot_msg b -> trivial b.
+      -> trivial_qrm_Acce b -> trivial_vot b -> trivial_vot_msg b -> trivial b.
 
 
-Lemma equalQrmVot : forall b, trivial_qrm_vot b -> subset (qrm b) (vot b) -> (qrm b) = (vot b).
-Proof.
-  intros b H1 H2. destruct H1 as [b H1 H3]. apply double_inclusion.
-  - exact H2.
-  - exact H3.
-Qed.
 
 
+(***************************************************************************)
+(* Chapter 10. DEFINITIONS AND PROPERTIES OF SYSTEM VOTES STATE            *)
+(***************************************************************************)
+(***************************************************************************)
+(* 系统投票状态的定义。                                                        *)
+(***************************************************************************)
+(* 参与者没有在某一轮次投票，并且以后也不会在这一轮次投票。 *)
 Inductive WontVoteIn : priest -> number -> Prop :=
-  | cons_WontVoteIn : forall a b, In a Acceptors -> In b Numbers -> (forall v, In v Values -> ~ VotedForIn a v b)
-                    /\ blt_number b (maxBal a) = true -> WontVoteIn a b.
+  | cons_WontVoteIn : forall a b, In a Acceptors -> In b Numbers ->
+         (forall v, In v Values -> ~ VotedForIn a v b)
+      /\ blt_number b (PromiseMaxBal a) = true -> WontVoteIn a b.
 
-
+(* 在任何轮次编号小与b的投票轮次中，除了v以外，没有别的特定值被选择，或者永远不会被选择，称为在（b, v）投票轮次稳定。 *)
 Inductive SafeAt : decree -> number -> Prop :=
   | cons_SafeAt : forall v b, In v Values -> In b Numbers ->
       (forall c, In c Numbers -> blt_number c b = true ->
@@ -579,33 +524,46 @@ Inductive SafeAt : decree -> number -> Prop :=
       )
        -> SafeAt v b.
 
+
 (***************************************************************************)
-(* Paxos phase 1a 1b 2a 2b                                                   *)
+(* Chapter 11. DEFINITIONS OF PAXOS ALL PHASES                             *)
+(***************************************************************************)
+(***************************************************************************)
+(* Paxos四个阶段的定义，分别对应系统中产生四条消息。                                *)
 (***************************************************************************)
 Inductive MsgInv : Prop :=
-  | cons_MsgInv : (forall m, In m msgs -> ((typeM m) = 1 -> True)
-                                    /\((typeM m) = 2 -> less_or_equal_number (balM m) (maxBal (accM m))
-                                                    /\    (In (maxValM m) Values /\
-                                                           In (maxVBalM m) Numbers /\
-                                                           VotedForIn (accM m) (maxValM m) (maxVBalM m)
-                                                       \/ ((maxValM m) = None /\
-                                                           (maxVBalM m) = numberId 0)))
-                                    /\((typeM m) = 3 -> (SafeAt (maxValM m) (balM m)
-                                                    /\ forall ma, set_In ma msgs -> (typeM ma) = 3 ->
-                                                        (balM ma) = (balM m) -> ma = m))
-                                    /\((typeM m) = 4 -> (less_or_equal_number (balM m) (maxVBal (accM m))
-                                                    /\ exists ma, set_In ma msgs /\
-                                                                  (typeM ma) = 3 /\
-                                                                  (balM ma) = (balM m) /\
-                                                                  (maxValM ma) = (maxValM m)))) -> MsgInv.
+  | cons_MsgInv : (forall m, In m msgsChannel ->
+        ((typeM m) = 1 -> True)
+     /\ ((typeM m) = 2 -> less_or_equal_number (balM m) (PromiseMaxBal(accM m))
+                      /\    (In (maxValM m) Values /\
+                             In (maxVBalM m) Numbers /\
+                             VotedForIn (accM m) (maxValM m) (maxVBalM m)
+                         \/ ((maxValM m) = None /\
+                             (maxVBalM m) = numberId 0)))
+     /\((typeM m) = 3 -> (SafeAt (maxValM m) (balM m)
+                      /\ forall ma, set_In ma msgsChannel -> (typeM ma) = 3 ->
+                            (balM ma) = (balM m) -> ma = m))
+     /\((typeM m) = 4 -> (less_or_equal_number (balM m) (AcceptedMaxBal (accM m))
+                      /\ exists ma, set_In ma msgsChannel
+                                 /\ (typeM ma) = 3
+                                 /\ (balM ma) = (balM m)
+                                 /\ (maxValM ma) = (maxValM m)))) -> MsgInv.
 
 
+(***************************************************************************)
+(* Chapter 12. VERIFICATION OF BASIC PAXOS                                 *)
+(***************************************************************************)
 (***************************************************************************)
 (* Basic Paxos算法的验证。                                                    *)
 (***************************************************************************)
-(***************************************************************************)
-(* Verification of basic Paxos algorithm.                                                    *)
-(***************************************************************************)
+Lemma equalQrmVot : forall b, trivial_qrm_vot b -> subset (qrm b) (vot b) -> (qrm b) = (vot b).
+Proof.
+  intros b H1 H2. destruct H1 as [b H1 H3]. apply double_inclusion.
+  - exact H2.
+  - exact H3.
+Qed.
+
+
 Lemma QrmVotToSucc :
   forall b a, trivial b -> set_In b aBallots ->
   set_In a (qrm b) -> (qrm b) = (vot b) -> Chosen (dec b).
@@ -667,7 +625,7 @@ Qed.
 
 Lemma VotedInv :
   forall a v b, MsgInv -> In a Acceptors /\ In v Values /\ In b Numbers ->
-                VotedForIn a v b -> less_or_equal_number b (maxVBal a) /\ SafeAt v b.
+                VotedForIn a v b -> less_or_equal_number b (AcceptedMaxBal a) /\ SafeAt v b.
 Proof.
   intros a v b H H0 H1. destruct H. destruct H1 as [a v b H1 H2 H3 H4].
   destruct H4 as [x H4]. generalize (H x); intros H5.
@@ -687,7 +645,7 @@ Qed.
 
 Lemma VotedInvForLe :
   forall a v b, MsgInv -> In a Acceptors /\ In v Values /\ In b Numbers ->
-                VotedForIn a v b -> less_or_equal_number b (maxVBal a).
+                VotedForIn a v b -> less_or_equal_number b (AcceptedMaxBal a).
 Proof.
   intros a v b H H0 H1. destruct H. destruct H1 as [a v b H1 H2 H3 H4].
   destruct H4 as [m H4]. specialize (H m); intros.
@@ -762,7 +720,7 @@ Proof.
   destruct H31 as [H31 H45]. destruct H34 as [H34 H46].
   generalize (H45 m4); intros H47.
   assert ( H30CopyTwo := H30Copy ). apply H47 in H30Copy.
-  - apply characteristic_prop_MessageNew in H30Copy.
+  - apply characteristic_prop_Message in H30Copy.
     + destruct H30Copy as [H48 H49].
       destruct H49 as [H49 H50].
       destruct H50 as [H50 H51].
@@ -806,14 +764,18 @@ Lemma SafeAtToVote : forall b1 b2, blt_number (bal b1) (bal b2)=true -> trivial 
   (exists a, In a (qrm b1) /\ In a (qrm b2) /\ (VotedForIn a (dec b2) (bal b1) \/ WontVoteIn a (bal b1))).
 Proof.
   intros b1 b2 H H0 H1 H2.
-  generalize (QuorumsAssumptionE (qrm b1) (qrm b2)); intros H3.
+  generalize (QuorumsAssumption (qrm b1) (qrm b2)); intros H3.
   assert ( H0Copy := H0 ). assert ( H1Copy := H1 ).
   destruct H0 as [H4 H5 H6 H7 H8 H9 H10].
   destruct H1 as [H11 H12 H13 H14 H15 H16 H17].
-  generalize (DoublePredicate (qrm b1) (qrm b2)); intros H18.
+  assert (HD : forall Q1 Q2, In Q1 Quorums -> In Q2 Quorums -> In Q1 Quorums /\ In Q2 Quorums ).
+    { intros Q1 Q2 HQ1 HQ2. split.
+      + exact HQ1.
+      + exact HQ2. }
+  specialize (HD (qrm b1) (qrm b2)); intros.
   destruct H4 as [b2 H4 H19].
   destruct H11 as [b1 H11 H20].
-  apply H18 in H20. apply H3 in H20.
+  apply HD in H20. apply H3 in H20.
   destruct H20 as [q H20].
   - exists q. destruct H2 as [v n H2 H21 H22]. split.
     + apply set_inter_elim1 in H20. exact H20.
@@ -938,7 +900,7 @@ Theorem Consistent : forall b1 b2, MsgInv ->
   (dec b1) = (dec b2).
 Proof.
   intros b1 b2 H H0 H1 H2 H3.
-  destruct (Aeq_dec_Ballot b1 b2).
+  destruct (eq_dec_Ballot b1 b2).
   - apply (ConsistentOfEqual b1 b2).
     + apply H0.
     + apply H1.
