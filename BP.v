@@ -915,3 +915,178 @@ Proof.
     + exact H3.
     + exact e.
 Qed.
+
+
+(***************************************************************************)
+(* Chapter 13. A CONCRETE EXAMPLE                                          *)
+(***************************************************************************)
+(***************************************************************************)
+(* Lamport论文中的具体例子。                                                   *)
+(***************************************************************************)
+(*具体例子对单个投票的抽象。*)
+Record Vote : Type := mkVote
+{
+  (* A priest *)
+  Vpriest : priest;
+  (* A ballot number *)
+  Vbal : number;
+  (* A decree *)
+  Vdec : decree;
+}.
+
+
+(* 系统中共有五个参与者，组成acceptors。涉及到两个特定值以及五个轮次的投票行为。*)
+Definition accPA := priestId 1.
+Definition accPB := priestId 2.
+Definition accPC := priestId 3.
+Definition accPD := priestId 4.
+Definition accPE := priestId 5.
+
+
+Definition acceptors := [accPA; accPB; accPC; accPD; accPE].
+
+
+Definition valueA := decreeId 1.
+Definition valueB := decreeId 2.
+
+
+Definition number2 := numberId 2.
+Definition number5 := numberId 5.
+Definition number14 := numberId 14.
+Definition number27 := numberId 27.
+Definition number29 := numberId 29.
+
+
+Definition ballot_2 := mkBallot valueA [accPA; accPB; accPC; accPD] [accPD] number2.
+Definition ballot_5 := mkBallot valueB [accPA; accPB; accPC; accPE] [accPC] number5.
+Definition ballot_14 := mkBallot valueA [accPB; accPD; accPE] [accPB; accPE] number14.
+Definition ballot_27 := mkBallot valueB [accPA; accPC; accPD] [accPA; accPC; accPD] number27.
+Definition ballot_29 := mkBallot valueB [accPB; accPC; accPD] [accPB] number29.
+
+
+Definition Ballots := [ballot_2; ballot_5; ballot_14; ballot_27; ballot_29].
+
+
+(* 以下过程用来说明：在ballot_27轮次之后，系统选择的所有特定值都满足一致性。*)
+(* get一轮投票的所有投票。 *)
+Fixpoint getPriestsVotes(l : list priest)(b : Ballot) : list Vote :=
+  match l with
+  | [] => []
+  | h :: r => mkVote h (bal b) (dec b) :: getPriestsVotes r b
+  end.
+
+
+Definition getBallotVotes(b : Ballot) : list Vote := getPriestsVotes (vot b) b.
+
+
+(* get所有轮投票的所有投票。 *)
+Fixpoint getAllVotes(l : list Ballot) : list Vote :=
+  match l with
+  | [] => []
+  | x :: r => getBallotVotes x ++ getAllVotes r
+  end.
+
+
+Definition votes := getAllVotes aBallots.
+
+
+(* get特定参与者一轮投票的所有投票。 *)
+Fixpoint isIn (x:priest)(l:list priest) : bool :=
+  match l with
+  | [] => false
+  | h::t => if beq_priest x h then true
+            else isIn x t
+  end.
+
+
+Fixpoint getBallotVoteForPriest(p : priest)(b : Ballot) : Vote :=
+  if isIn p (vot b) then mkVote p (bal b) (dec b)
+  else mkVote p (numberId 0) None.
+
+(* get特定参与者所有轮投票的所有投票。 *)
+Fixpoint getAllVotesForPriest(p : priest)(l : list Ballot) : list Vote :=
+  match l with
+  | [] => []
+  | h :: r => getBallotVoteForPriest p h :: getAllVotesForPriest p r
+  end.
+
+
+Fixpoint maxVotes (e: Vote) (l : list Vote) : Vote :=
+  match l with
+  | [] => e
+  | x :: r => if blt_number (Vbal e) (Vbal x) then maxVotes x r else maxVotes e r
+  end.
+
+
+(* get每个参与者在所有轮投票中的最大投票列表。 *)
+Fixpoint maxs(lp : list priest)(lv : list Ballot) : list Vote :=
+  match lp with
+  | [] => []
+  | h :: r => maxVotes (mkVote h (numberId 0) None) (getAllVotesForPriest h lv) :: maxs r lv
+  end.
+
+
+(* get所有参与者在所有轮投票中的最大投票。 *)
+Fixpoint MaxOfAll(e: Vote)(l : list Vote) : Vote :=
+  match l with
+  | [] => e
+  | h :: r => if blt_number (Vbal e) (Vbal h) then MaxOfAll h r else MaxOfAll e r
+  end.
+
+(* 对以上定义的检测：通过执行可以确保定义的正确性。 *)
+Compute MaxOfAll (mkVote accPA (numberId 0) None) (maxs [accPA; accPB; accPC; accPD; accPE] Ballots).
+Compute maxs [accPA; accPB; accPC; accPD; accPE] Ballots.
+
+
+Theorem max_A : maxVotes (mkVote accPA (numberId 0) None) (getAllVotesForPriest accPA Ballots)
+    = (mkVote accPA (numberId 27) valueB).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+Theorem max_B : maxVotes (mkVote accPB (numberId 0) None) (getAllVotesForPriest accPB Ballots)
+    = (mkVote accPB (numberId 29) valueB).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+Theorem max_C : maxVotes (mkVote accPC (numberId 0) None) (getAllVotesForPriest accPC Ballots)
+    = (mkVote accPC (numberId 27) valueB).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+Theorem max_D : maxVotes (mkVote accPD (numberId 0) None) (getAllVotesForPriest accPD Ballots)
+    = (mkVote accPD (numberId 27) valueB).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+Theorem max_E : maxVotes (mkVote accPE (numberId 0) None) (getAllVotesForPriest accPE Ballots)
+    = (mkVote accPE (numberId 14) valueA).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+Theorem max_OfAll : MaxOfAll (mkVote accPA (numberId 0) None) (maxs [accPA; accPB; accPC; accPD; accPE] Ballots)
+    = (mkVote accPB (numberId 29) valueB).
+Proof.
+  simpl. reflexivity.
+Qed.
+
+
+(* 在Paxos假设满足的情况下，ballot_27轮次之后系统所选的特定值都保持一致。*)
+Hypothesis conditionOfMax : forall b : Ballot, (dec b)
+  = Vdec (MaxOfAll (mkVote accPA (numberId 0) None) (maxs [accPA; accPB; accPC; accPD; accPE] Ballots)).
+
+
+Theorem ExampleOfConsistent : forall b : Ballot, blt_number (bal ballot_27) (bal b) = true ->
+  (dec b) = dec ballot_27.
+Proof.
+  intros. apply (conditionOfMax b).
+Qed.
