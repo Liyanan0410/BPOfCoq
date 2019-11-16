@@ -314,7 +314,7 @@ Record Message : Type := mkMessage
 {
   typeM : nat;         (* 消息的类型。 *)
   balM : number;       (* 消息的轮次。 *)
-  maxVBalM : number;   (* 消息的轮次。只有type 2有。 *)
+  maxBalM : number;   (* 消息的轮次。只有type 2有。 *)
   maxValM : decree;     (* 消息的值。type 2表示曾经参与的最大值，type 3 4表示现阶段进行投票的值，type 1没有。 *)
   accM : priest;       (* 消息的发送者。type 2 4时有，其他的没有。 *)
 }.
@@ -373,7 +373,7 @@ Qed.
 Lemma characteristic_prop_Message : forall m1 m2,  In m1 msgsChannel -> In m2 msgsChannel -> (typeM m1) = (typeM m2)
                              /\(balM m1) = (balM m2)
                              /\(maxValM m1) = (maxValM m2)
-                             /\(maxVBalM m1) = (maxVBalM m2)
+                             /\(maxBalM m1) = (maxBalM m2)
                              /\(accM m1) = (accM m2) <-> m1 = m2.
 Proof.
   intros m1 m2 i1 i2. split.
@@ -441,14 +441,14 @@ Inductive VotedForIn : priest -> decree -> number -> Prop :=
                                 /\ (accM m) = a) -> VotedForIn a v b.
 
 
-Inductive ChosenIn : decree -> number -> Prop :=
-  | cons_ChosenIn : forall v b, In v Values -> In b Numbers -> (exists Q, In Q Quorums ->
-      forall a, set_In a Q -> VotedForIn a v b) -> ChosenIn v b.
+Inductive SuccessfulIn : decree -> number -> Prop :=
+  | cons_SuccessfulIn : forall v b, In v Values -> In b Numbers -> (exists Q, In Q Quorums ->
+      forall a, set_In a Q -> VotedForIn a v b) -> SuccessfulIn v b.
 
 
 Inductive Chosen : decree -> Prop :=
   | cons_Chosen : forall v, In v Values -> (exists b, In b Numbers ->
-      ChosenIn v b) -> Chosen v.
+      SuccessfulIn v b) -> Chosen v.
 
 
 (***************************************************************************)
@@ -536,10 +536,10 @@ Inductive MsgInv : Prop :=
         ((typeM m) = 1 -> True)
      /\ ((typeM m) = 2 -> less_or_equal_number (balM m) (PromiseMaxBal(accM m))
                       /\    (In (maxValM m) Values /\
-                             In (maxVBalM m) Numbers /\
-                             VotedForIn (accM m) (maxValM m) (maxVBalM m)
+                             In (maxBalM m) Numbers /\
+                             VotedForIn (accM m) (maxValM m) (maxBalM m)
                          \/ ((maxValM m) = None /\
-                             (maxVBalM m) = numberId 0)))
+                             (maxBalM m) = numberId 0)))
      /\((typeM m) = 3 -> (SafeAt (maxValM m) (balM m)
                       /\ forall ma, set_In ma msgsChannel -> (typeM ma) = 3 ->
                             (balM ma) = (balM m) -> ma = m))
@@ -574,7 +574,7 @@ Proof.
   - destruct H8 as [b H8 H10]. generalize (H10 a ); intros H11.
     rewrite H2 in H1. apply H11 in H1.
     destruct H1 as [ a v b0 H H1 H12 H13]. exists b0. intros H15.
-    apply (cons_ChosenIn v b0).
+    apply (cons_SuccessfulIn v b0).
     + exact H1.
     + exact H15.
     + exists (qrm b). intros. generalize (H10 a0); intros.
